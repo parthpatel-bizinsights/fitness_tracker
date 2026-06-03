@@ -10,10 +10,7 @@ const app = express();
 app.use(helmet());
 app.use(
   cors({
-    origin:
-      process.env.FRONTEND_URL ||
-      "https://6jg8vt57-5173.inc1.devtunnels.ms" ||
-      "*",
+    origin: "*",
     credentials: true,
   }),
 );
