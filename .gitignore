@@ -1,0 +1,56 @@
+# Node modules
+node_modules/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Runtime data
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# Build / dist
+dist/
+build/
+tmp/
+temp/
+
+# Coverage reports
+coverage/
+*.lcov
+
+# VSCode
+.vscode/
+
+# System files
+.DS_Store
+Thumbs.db
+
+# Optional: Ignore database or OS generated files
+*.sqlite
+*.sqlite3
+*.db
+
+# Optional: Ignore uploads or generated files
+uploads/
+storage/
+public/
+
+# Optional: Ignore test outputs
+test-output/
+
+# Ignore IDEs
+.idea/
+*.swp
+*.swo
+
+# Ignore TypeScript output if using TS
+*.tsbuildinfo
+
+.env
