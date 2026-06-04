@@ -7,7 +7,7 @@ const { updateStreak } = require("../helpers/streakCalc");
 
 const startSession = async (req, res, next) => {
   try {
-    const { workoutPlanId, planName } = req.body;
+    const { workoutPlanId, planName, dayIndex } = req.body;
     
     let name = planName || "Custom Workout Session";
     let planExercises = [];
@@ -15,8 +15,13 @@ const startSession = async (req, res, next) => {
     if (workoutPlanId) {
       const plan = await WorkoutPlan.findOne({ where: { id: workoutPlanId, userId: req.user.id } });
       if (plan) {
-        name = plan.name;
-        planExercises = plan.exercises || [];
+        if (plan.schedule && plan.schedule.length > 0) {
+          const idx = (dayIndex !== undefined && dayIndex >= 0 && dayIndex < plan.schedule.length) ? dayIndex : 0;
+          name = `${plan.name} - ${plan.schedule[idx].dayName}`;
+          planExercises = plan.schedule[idx].exercises || [];
+        } else {
+          name = plan.name;
+        }
       }
     }
 

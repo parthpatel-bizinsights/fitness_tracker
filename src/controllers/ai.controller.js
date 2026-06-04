@@ -66,7 +66,7 @@ const mealScan = async (req, res, next) => {
 
 const generateWorkout = async (req, res, next) => {
   try {
-    const { goal, experience, daysPerWeek, equipment } = req.body;
+    const { goal, experience, daysPerWeek, equipment, restDays } = req.body;
     if (!goal || !experience || !daysPerWeek || !equipment) {
       return next(new apiError(HTTP_STATUS.BAD_REQUEST, HTTP_CODE.BAD_REQUEST, "goal, experience, daysPerWeek, and equipment are required"));
     }
@@ -80,12 +80,15 @@ const generateWorkout = async (req, res, next) => {
     }));
 
     const prompt = `
-      You are a certified fitness coach. Design a custom workout plan based on the client's preferences:
+      You are a certified fitness coach. Design a custom, weekly structured workout plan based on the client's preferences:
       - Goal: ${goal.replace("_", " ")}
       - Experience level: ${experience}
       - Training frequency: ${daysPerWeek} days per week
       - Available equipment: ${equipment.replace("_", " ")}
+      ${restDays && restDays.length > 0 ? `- The user explicitly cannot train on these days: ${restDays.join(", ")}. Plan the schedule around this.` : ""}
 
+      Structure the plan across the week. For example, if training 3 days a week, provide 3 distinct day routines (e.g., Push/Pull/Legs or Day 1/Day 2/Day 3).
+      Assign a descriptive name to each day (e.g., "Push (Chest & Triceps)").
       Choose exercises strictly from this database list to match the user's split. Do not make up exercise IDs:
       ${JSON.stringify(exerciseList)}
 
@@ -93,12 +96,22 @@ const generateWorkout = async (req, res, next) => {
       
       Required JSON format:
       {
-        "name": "AI Generated Split Plan Name",
+        "name": "AI Generated Split Plan Name (e.g., 3-Day Push Pull Legs)",
         "goal": "${goal}",
         "daysPerWeek": ${daysPerWeek},
-        "exercises": [
-          { "exerciseId": "matching_uuid_from_above", "sets": 4, "reps": 10, "weightKg": 60 },
-          { "exerciseId": "another_matching_uuid", "sets": 3, "reps": 12, "weightKg": 15 }
+        "schedule": [
+          {
+            "dayName": "Day 1: Push (Chest, Shoulders, Triceps)",
+            "exercises": [
+              { "exerciseId": "matching_uuid_from_above", "sets": 4, "reps": 10, "weightKg": 60 }
+            ]
+          },
+          {
+            "dayName": "Day 2: Pull (Back, Biceps)",
+            "exercises": [
+              { "exerciseId": "another_matching_uuid", "sets": 3, "reps": 12, "weightKg": 15 }
+            ]
+          }
         ]
       }
     `;
