@@ -6,7 +6,8 @@ const apiError = require("../../utils/error.util");
 const apiResponse = require("../../utils/response.util");
 const HTTP_STATUS = require("../../constants/httpStatus.constant");
 const HTTP_CODE = require("../../constants/httpCode.constant");
-const { sendEmail } = require("../services/email.service");
+const { sendEmail, generateEmailTemplate } = require("../services/email.service");
+const admin = require("../../utils/firebase.util");
 
 // Access & Refresh token helpers
 const generateAccessToken = (user) => {
@@ -45,33 +46,34 @@ const register = async (req, res, next) => {
     }
 
     const hashedPassword = await bcrypt.hash(password, 12);
+    const verificationToken = crypto.randomBytes(32).toString("hex");
+
     const user = await User.create({
       fullName,
       email,
       password: hashedPassword,
+      isEmailVerified: false,
+      verificationToken
     });
 
-    // Auto-login: generate tokens immediately
-    const accessToken = generateAccessToken(user);
-    const refreshTokenVal = generateRefreshTokenString();
+    const verifyUrl = `${process.env.CLIENT_URL || "http://localhost:5173"}/verify-email?token=${verificationToken}`;
     
-    await RefreshToken.create({
-      userId: user.id,
-      token: refreshTokenVal,
-      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+    const emailHtml = generateEmailTemplate(
+      "Verify your Email Address",
+      "Welcome to Aura Fitness! Please verify your email.",
+      `Hi ${fullName},<br><br>Welcome to Aura Fitness! To get started and unlock your personalized training dashboard, please verify your email address by clicking the button below.`,
+      "Verify Email",
+      verifyUrl
+    );
+
+    await sendEmail({
+      to: email,
+      subject: "Welcome to Aura Fitness - Verify your Email",
+      html: emailHtml
     });
-
-    setRefreshTokenCookie(res, refreshTokenVal);
-
-    const cleanUser = user.toJSON();
-    delete cleanUser.password;
 
     res.status(HTTP_STATUS.CREATED).json(
-      new apiResponse(HTTP_STATUS.CREATED, HTTP_CODE.CREATED, "Registration successful", {
-        accessToken,
-        refreshToken: refreshTokenVal,
-        user: cleanUser,
-      })
+      new apiResponse(HTTP_STATUS.CREATED, HTTP_CODE.CREATED, "Registration successful. Please check your email to verify your account.", null)
     );
   } catch (error) {
     next(error);
@@ -88,6 +90,10 @@ const login = async (req, res, next) => {
     const user = await User.findOne({ where: { email } });
     if (!user || !(await bcrypt.compare(password, user.password))) {
       return next(new apiError(HTTP_STATUS.UNAUTHORIZED, HTTP_CODE.UNAUTHORIZED, "Invalid email or password"));
+    }
+
+    if (!user.isEmailVerified) {
+      return next(new apiError(HTTP_STATUS.FORBIDDEN, HTTP_CODE.FORBIDDEN, "Please verify your email address before logging in."));
     }
 
     const accessToken = generateAccessToken(user);
@@ -111,6 +117,30 @@ const login = async (req, res, next) => {
         refreshToken: refreshTokenVal,
         user: cleanUser,
       })
+    );
+  } catch (error) {
+    next(error);
+  }
+};
+
+const verifyEmail = async (req, res, next) => {
+  try {
+    const { token } = req.body;
+    if (!token) {
+      return next(new apiError(HTTP_STATUS.BAD_REQUEST, HTTP_CODE.BAD_REQUEST, "Verification token is required"));
+    }
+
+    const user = await User.findOne({ where: { verificationToken: token } });
+    if (!user) {
+      return next(new apiError(HTTP_STATUS.BAD_REQUEST, HTTP_CODE.BAD_REQUEST, "Invalid or expired verification token"));
+    }
+
+    user.isEmailVerified = true;
+    user.verificationToken = null;
+    await user.save();
+
+    res.status(HTTP_STATUS.OK).json(
+      new apiResponse(HTTP_STATUS.OK, HTTP_CODE.OK, "Email verified successfully. You can now log in.", null)
     );
   } catch (error) {
     next(error);
@@ -196,10 +226,20 @@ const forgotPassword = async (req, res, next) => {
       expiresAt: Date.now() + 15 * 60 * 1000, // 15 mins
     });
 
+    const resetUrl = `${process.env.CLIENT_URL || "http://localhost:5173"}/reset-password?email=${encodeURIComponent(email)}`;
+    
+    const emailHtml = generateEmailTemplate(
+      "Reset your Password",
+      "We received a request to reset your password.",
+      `Hi ${user.fullName},<br><br>We received a request to reset your Aura Fitness password. Use the verification code below to securely reset it:<br><br><strong style="font-size: 24px; color: #8b5cf6; letter-spacing: 4px;">${otp}</strong><br><br>This code will expire in 15 minutes.`,
+      "Reset Password",
+      resetUrl
+    );
+
     await sendEmail({
       to: email,
-      subject: "Fitness Tracker Password Reset OTP",
-      html: `<p>Your password reset code is <strong>${otp}</strong>. It expires in 15 minutes.</p>`,
+      subject: "Aura Fitness - Password Reset Code",
+      html: emailHtml,
     });
 
     res.status(HTTP_STATUS.OK).json(
@@ -241,7 +281,7 @@ const resetPassword = async (req, res, next) => {
   }
 };
 
-const getProfile = async (req, res, next) => {
+const getCurrentUser = async (req, res, next) => {
   try {
     const cleanUser = req.user.toJSON();
     delete cleanUser.password;
@@ -313,15 +353,86 @@ const deleteAccount = async (req, res, next) => {
     next(error);
   }
 };
+const googleAuth = async (req, res, next) => {
+  try {
+    const { idToken } = req.body;
+    if (!idToken) {
+      return next(new apiError(HTTP_STATUS.BAD_REQUEST, HTTP_CODE.BAD_REQUEST, "ID token is required"));
+    }
+
+    // Verify token with Firebase
+    const decodedToken = await admin.auth().verifyIdToken(idToken);
+    const { email, name, picture, uid } = decodedToken;
+
+    if (!email) {
+      return next(new apiError(HTTP_STATUS.BAD_REQUEST, HTTP_CODE.BAD_REQUEST, "No email found in Google token"));
+    }
+
+    // Check if user exists
+    let user = await User.findOne({ where: { email } });
+
+    if (user) {
+      // User exists. If they originally signed up via email/password, 
+      // linking is implicit (we just let them log in since emails match and Google verified it).
+      // If we want to strictly track, we can update googleId if not present:
+      if (!user.googleId) {
+        user.googleId = uid;
+        user.authProvider = "google";
+        user.isEmailVerified = true;
+        if (!user.avatarUrl && picture) user.avatarUrl = picture;
+        await user.save();
+      }
+    } else {
+      // Create new user with Google Auth
+      user = await User.create({
+        fullName: name || "Google User",
+        email,
+        password: crypto.randomBytes(32).toString("hex"), // Fake random password
+        isEmailVerified: true,
+        authProvider: "google",
+        googleId: uid,
+        avatarUrl: picture || null,
+      });
+    }
+
+    // Generate tokens
+    const accessToken = generateAccessToken(user);
+    const refreshTokenVal = generateRefreshTokenString();
+
+    await RefreshToken.create({
+      userId: user.id,
+      token: refreshTokenVal,
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+    });
+
+    setRefreshTokenCookie(res, refreshTokenVal);
+
+    const cleanUser = user.toJSON();
+    delete cleanUser.password;
+
+    res.status(HTTP_STATUS.OK).json(
+      new apiResponse(HTTP_STATUS.OK, HTTP_CODE.OK, "Google Login successful", {
+        accessToken,
+        refreshToken: refreshTokenVal,
+        user: cleanUser,
+      })
+    );
+  } catch (error) {
+    console.error("Google Auth Error:", error);
+    next(new apiError(HTTP_STATUS.UNAUTHORIZED, HTTP_CODE.UNAUTHORIZED, "Invalid or expired Google token"));
+  }
+};
 
 module.exports = {
   register,
   login,
+  googleAuth,
+  verifyEmail,
   logout,
   refreshToken,
   forgotPassword,
   resetPassword,
-  getProfile,
+  getCurrentUser,
   updateProfile,
   changePassword,
   deleteAccount,

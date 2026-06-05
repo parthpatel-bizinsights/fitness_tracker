@@ -21,7 +21,7 @@ const User = sequelize.define("User", {
   },
   password: {
     type: DataTypes.STRING(255),
-    allowNull: false,
+    allowNull: true, // Nullable for Google Auth users
   },
   age: {
     type: DataTypes.INTEGER,
@@ -83,6 +83,24 @@ const User = sequelize.define("User", {
   isBanned: {
     type: DataTypes.BOOLEAN,
     defaultValue: false,
+  },
+  isEmailVerified: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: true, // Defaulting to true so existing test accounts aren't locked out immediately
+  },
+  verificationToken: {
+    type: DataTypes.STRING(255),
+    allowNull: true,
+  },
+  authProvider: {
+    type: DataTypes.ENUM("local", "google"),
+    defaultValue: "local",
+    allowNull: false,
+  },
+  googleId: {
+    type: DataTypes.STRING(255),
+    allowNull: true,
+    unique: true,
   },
 }, {
   timestamps: true,
