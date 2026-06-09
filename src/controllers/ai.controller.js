@@ -6,6 +6,7 @@ const apiError = require("../../utils/error.util");
 const apiResponse = require("../../utils/response.util");
 const HTTP_STATUS = require("../../constants/httpStatus.constant");
 const HTTP_CODE = require("../../constants/httpCode.constant");
+const { MEAL_SCAN_PROMPT, getWorkoutGenerationPrompt, getCoachChatPrompt } = require("../constants/aiPrompts.constant");
 
 // Helper to strip markdown JSON blocks from Gemini responses
 const cleanJsonResponse = (text) => {
@@ -34,20 +35,7 @@ const mealScan = async (req, res, next) => {
       }
     };
 
-    const prompt = `
-      You are a professional nutrition expert. Analyze the provided meal image and return ONLY a valid JSON object.
-      Do not include any explanations, markdown code block wrappers (like \`\`\`json), or extra text. Just the raw JSON.
-      
-      The JSON structure MUST be:
-      {
-        "mealName": "Name of the meal",
-        "calories": 450, // estimation in kcal
-        "protein": 30, // estimation in grams
-        "carbs": 50, // estimation in grams
-        "fats": 12, // estimation in grams
-        "confidence": "high" // "high", "medium", or "low" depending on identification certainty
-      }
-    `;
+    const prompt = MEAL_SCAN_PROMPT;
 
     const result = await geminiFlash.generateContent([prompt, imagePart]);
     const responseText = result.response.text();
@@ -66,7 +54,7 @@ const mealScan = async (req, res, next) => {
 
 const generateWorkout = async (req, res, next) => {
   try {
-    const { goal, experience, daysPerWeek, equipment, restDays } = req.body;
+    const { goal, experience, daysPerWeek, equipment, restDays, preferredSplit } = req.body;
     if (!goal || !experience || !daysPerWeek || !equipment) {
       return next(new apiError(HTTP_STATUS.BAD_REQUEST, HTTP_CODE.BAD_REQUEST, "goal, experience, daysPerWeek, and equipment are required"));
     }
@@ -79,42 +67,7 @@ const generateWorkout = async (req, res, next) => {
       category: e.category,
     }));
 
-    const prompt = `
-      You are a certified fitness coach. Design a custom, weekly structured workout plan based on the client's preferences:
-      - Goal: ${goal.replace("_", " ")}
-      - Experience level: ${experience}
-      - Training frequency: ${daysPerWeek} days per week
-      - Available equipment: ${equipment.replace("_", " ")}
-      ${restDays && restDays.length > 0 ? `- The user explicitly cannot train on these days: ${restDays.join(", ")}. Plan the schedule around this.` : ""}
-
-      Structure the plan across the week. For example, if training 3 days a week, provide 3 distinct day routines (e.g., Push/Pull/Legs or Day 1/Day 2/Day 3).
-      Assign a descriptive name to each day (e.g., "Push (Chest & Triceps)").
-      Choose exercises strictly from this database list to match the user's split. Do not make up exercise IDs:
-      ${JSON.stringify(exerciseList)}
-
-      Return ONLY a valid JSON object representing the plan. Do not include markdown code block backticks (like \`\`\`json) or extra details.
-      
-      Required JSON format:
-      {
-        "name": "AI Generated Split Plan Name (e.g., 3-Day Push Pull Legs)",
-        "goal": "${goal}",
-        "daysPerWeek": ${daysPerWeek},
-        "schedule": [
-          {
-            "dayName": "Day 1: Push (Chest, Shoulders, Triceps)",
-            "exercises": [
-              { "exerciseId": "matching_uuid_from_above", "sets": 4, "reps": 10, "weightKg": 60 }
-            ]
-          },
-          {
-            "dayName": "Day 2: Pull (Back, Biceps)",
-            "exercises": [
-              { "exerciseId": "another_matching_uuid", "sets": 3, "reps": 12, "weightKg": 15 }
-            ]
-          }
-        ]
-      }
-    `;
+    const prompt = getWorkoutGenerationPrompt(goal, experience, daysPerWeek, equipment, restDays, exerciseList, preferredSplit);
 
     const result = await geminiFlash.generateContent([prompt]);
     const responseText = result.response.text();
@@ -168,16 +121,7 @@ const coachChat = async (req, res, next) => {
 
     const chatContext = convoHistory.map((m) => `${m.role === "user" ? "Client" : "Coach"}: ${m.content}`).join("\n");
 
-    const fullPrompt = `
-      ${userProfileContext}
-      
-      Conversation History:
-      ${chatContext}
-      
-      Client's message: "${message}"
-      
-      Respond as Coach Aura in a friendly, motivating, and expert tone. Keep the answer concise (under 150 words) and directly actionable.
-    `;
+    const fullPrompt = getCoachChatPrompt(userProfileContext, chatContext, message);
 
     const result = await geminiFlash.generateContent([fullPrompt]);
     const reply = result.response.text().trim();

@@ -39,6 +39,22 @@ const Exercise = sequelize.define("Exercise", {
     type: DataTypes.STRING(100),
     allowNull: true,
   },
+  commonMistakes: {
+    type: DataTypes.JSONB, // Stores array of strings
+    allowNull: true,
+  },
+  muscleActivationIndex: {
+    type: DataTypes.JSONB, // Stores JSON data for muscle activation
+    allowNull: true,
+  },
+  targetMusclePhoto: {
+    type: DataTypes.TEXT,
+    allowNull: true,
+  },
+  videoThumbnailUrl: {
+    type: DataTypes.TEXT,
+    allowNull: true,
+  },
 }, {
   timestamps: true,
   tableName: "Exercises",

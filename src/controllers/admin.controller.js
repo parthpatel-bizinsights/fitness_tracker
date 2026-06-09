@@ -489,7 +489,7 @@ const getAllExercises = async (req, res, next) => {
 
 const createExercise = async (req, res, next) => {
   try {
-    const { name, category, muscleGroup, difficulty, equipment, instructions, videoUrl, imageUrl } = req.body;
+    const { name, category, muscleGroup, difficulty, equipment, instructions, videoUrl, imageUrl, commonMistakes, muscleActivationIndex, targetMusclePhoto, videoThumbnailUrl } = req.body;
 
     if (!name || !category) {
       return next(new apiError(HTTP_STATUS.BAD_REQUEST, HTTP_CODE.BAD_REQUEST, "name and category are required"));
@@ -502,8 +502,12 @@ const createExercise = async (req, res, next) => {
       difficulty,
       equipment,
       instructions: Array.isArray(instructions) ? instructions : [],
+      commonMistakes: Array.isArray(commonMistakes) ? commonMistakes : [],
+      muscleActivationIndex,
       videoUrl,
       imageUrl,
+      targetMusclePhoto,
+      videoThumbnailUrl,
     });
 
     res.status(HTTP_STATUS.CREATED).json(
@@ -522,7 +526,7 @@ const updateExercise = async (req, res, next) => {
       return next(new apiError(HTTP_STATUS.NOT_FOUND, HTTP_CODE.DATA_NOT_FOUND, "Exercise not found"));
     }
 
-    const allowedFields = ["name", "category", "muscleGroup", "difficulty", "equipment", "instructions", "videoUrl", "imageUrl"];
+    const allowedFields = ["name", "category", "muscleGroup", "difficulty", "equipment", "instructions", "commonMistakes", "muscleActivationIndex", "videoUrl", "imageUrl", "targetMusclePhoto", "videoThumbnailUrl"];
     allowedFields.forEach((field) => {
       if (req.body[field] !== undefined) {
         exercise[field] = req.body[field];
