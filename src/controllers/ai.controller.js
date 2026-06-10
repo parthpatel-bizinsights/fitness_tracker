@@ -1,5 +1,5 @@
 const sharp = require("sharp");
-const { geminiFlash } = require("../config/gemini");
+const { analyzeMealImage, generateWorkoutPlan, generateCoachReply } = require("../services/ai.service");
 const { uploadToCloudinary } = require("../middlewares/upload.middleware");
 const { ChatMessage, Exercise } = require("../models");
 const apiError = require("../../utils/error.util");
@@ -7,11 +7,6 @@ const apiResponse = require("../../utils/response.util");
 const HTTP_STATUS = require("../../constants/httpStatus.constant");
 const HTTP_CODE = require("../../constants/httpCode.constant");
 const { MEAL_SCAN_PROMPT, getWorkoutGenerationPrompt, getCoachChatPrompt } = require("../constants/aiPrompts.constant");
-
-// Helper to strip markdown JSON blocks from Gemini responses
-const cleanJsonResponse = (text) => {
-  return text.replace(/```json|```/g, "").trim();
-};
 
 const mealScan = async (req, res, next) => {
   try {
@@ -37,11 +32,7 @@ const mealScan = async (req, res, next) => {
 
     const prompt = MEAL_SCAN_PROMPT;
 
-    const result = await geminiFlash.generateContent([prompt, imagePart]);
-    const responseText = result.response.text();
-    const cleanJson = cleanJsonResponse(responseText);
-
-    const parsedMacros = JSON.parse(cleanJson);
+    const parsedMacros = await analyzeMealImage(prompt, imagePart);
     parsedMacros.imageUrl = cloudinaryUrl;
 
     res.status(HTTP_STATUS.OK).json(
@@ -69,11 +60,7 @@ const generateWorkout = async (req, res, next) => {
 
     const prompt = getWorkoutGenerationPrompt(goal, experience, daysPerWeek, equipment, restDays, exerciseList, preferredSplit);
 
-    const result = await geminiFlash.generateContent([prompt]);
-    const responseText = result.response.text();
-    const cleanJson = cleanJsonResponse(responseText);
-
-    const planData = JSON.parse(cleanJson);
+    const planData = await generateWorkoutPlan(prompt);
 
     res.status(HTTP_STATUS.OK).json(
       new apiResponse(HTTP_STATUS.OK, HTTP_CODE.OK, "Workout plan generated successfully", planData)
@@ -85,7 +72,7 @@ const generateWorkout = async (req, res, next) => {
 
 const coachChat = async (req, res, next) => {
   try {
-    const { message } = req.body;
+    const { message, context } = req.body;
     if (!message) {
       return next(new apiError(HTTP_STATUS.BAD_REQUEST, HTTP_CODE.BAD_REQUEST, "Message text is required"));
     }
@@ -117,14 +104,14 @@ const coachChat = async (req, res, next) => {
       - Experience Level: ${req.user.experienceLevel || "intermediate"}
       - Equipment Access: ${req.user.equipment ? req.user.equipment.replace("_", " ") : "full gym"}
       - Streak: ${req.user.currentStreak} active days
+      ${context ? `\n=== ADDITIONAL CLIENT CONTEXT FOR THIS REQUEST ===\n${context}\n==================================================` : ""}
     `;
 
     const chatContext = convoHistory.map((m) => `${m.role === "user" ? "Client" : "Coach"}: ${m.content}`).join("\n");
 
     const fullPrompt = getCoachChatPrompt(userProfileContext, chatContext, message);
 
-    const result = await geminiFlash.generateContent([fullPrompt]);
-    const reply = result.response.text().trim();
+    const reply = await generateCoachReply(fullPrompt);
 
     // Save assistant reply to database
     const coachMessage = await ChatMessage.create({

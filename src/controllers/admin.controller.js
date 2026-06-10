@@ -320,7 +320,7 @@ const getUserDetail = async (req, res, next) => {
     // Weight history
     const weightHistory = await WeightLog.findAll({
       where: { userId: id },
-      order: [["loggedAt", "ASC"]],
+      order: [["date", "ASC"]],
       limit: 30,
     });
 

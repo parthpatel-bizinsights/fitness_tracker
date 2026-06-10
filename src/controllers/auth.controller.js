@@ -181,18 +181,8 @@ const refreshToken = async (req, res, next) => {
       return next(new apiError(HTTP_STATUS.UNAUTHORIZED, HTTP_CODE.UNAUTHORIZED, "User not found"));
     }
 
-    // Rotate tokens
+    // Only generate a new access token. Keep the existing refresh token valid.
     const newAccessToken = generateAccessToken(user);
-    const newRefreshTokenVal = generateRefreshTokenString();
-
-    await RefreshToken.destroy({ where: { id: storedToken.id } });
-    await RefreshToken.create({
-      userId: user.id,
-      token: newRefreshTokenVal,
-      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-    });
-
-    setRefreshTokenCookie(res, newRefreshTokenVal);
 
     res.status(HTTP_STATUS.OK).json(
       new apiResponse(HTTP_STATUS.OK, HTTP_CODE.OK, "Token refreshed successfully", {

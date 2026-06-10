@@ -56,10 +56,28 @@ Do not include markdown blocks or any other text.
     return JSON.parse(cleanJson);
   } catch (error) {
     console.error(`⚠️ AI Generation failed for ${exerciseName}:`, error.message);
-    // Return fallback structured data
+    const muscleMistakes = {
+      abs: ["Pulling on the neck", "Using momentum instead of core", "Not breathing properly"],
+      pectorals: ["Flaring elbows too wide", "Not retracting scapula", "Bouncing weight off chest"],
+      lats: ["Pulling with biceps instead of back", "Rounding the lower back", "Incomplete range of motion"],
+      quads: ["Knees caving inward", "Heels lifting off the ground", "Not squatting deep enough"],
+      glutes: ["Hyperextending the lower back at the top", "Not driving through the heels", "Knees collapsing inwards"],
+      shoulders: ["Using momentum to swing the weight", "Shrugging the traps too much", "Lowering the weight too fast"],
+      biceps: ["Swinging the torso for momentum", "Not fully extending at the bottom", "Curling wrists inward"],
+      triceps: ["Flaring elbows outward", "Using shoulder momentum", "Incomplete lockout"],
+      cardio: ["Poor posture during movement", "Inconsistent pacing", "Landing too heavy on the feet"],
+      default: ["Using momentum instead of controlled movement", "Holding breath during the exercise", "Poor posture or alignment"]
+    };
+
+    const target = targetMuscle ? targetMuscle.toLowerCase() : "default";
+    const mappedMistakes = muscleMistakes[target] || muscleMistakes["default"];
+
     return {
-      commonMistakes: ["Using too much momentum", "Improper breathing"],
-      muscleActivationIndex: { [targetMuscle]: 80, "Stabilizers": 20 }
+      commonMistakes: mappedMistakes,
+      muscleActivationIndex: {
+        [targetMuscle || "Primary Muscle"]: 70,
+        [secondaryMuscles?.[0] || "Secondary Muscle"]: 30,
+      },
     };
   }
 };
@@ -80,9 +98,9 @@ const generateExercises = async () => {
     let apiExercises = [];
     let nextCursor = "";
     
-    while (apiExercises.length < 500) {
+    while (apiExercises.length < 525) {
       const cursorParam = nextCursor ? `&after=${nextCursor}` : "";
-      const url = `https://oss.exercisedb.dev/api/v1/exercises?limit=25${cursorParam}`;
+      const url = `https://oss.exercisedb.dev/api/v1/exercises?limit=100${cursorParam}`;
       
       const response = await fetch(url);
       if (!response.ok) {
@@ -102,6 +120,9 @@ const generateExercises = async () => {
       if (!payload.meta?.hasNextPage || !nextCursor) {
         break;
       }
+
+      // Avoid hitting OSS API rate limit during pagination
+      await delay(5000);
     }
 
     console.log(`✅ Fetched ${apiExercises.length} exercises from OSS API.`);
