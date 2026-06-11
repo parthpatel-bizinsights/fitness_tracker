@@ -1,7 +1,8 @@
 const sharp = require("sharp");
 const { analyzeMealImage, generateWorkoutPlan, generateCoachReply } = require("../services/ai.service");
 const { uploadToCloudinary } = require("../middlewares/upload.middleware");
-const { ChatMessage, Exercise } = require("../models");
+const { ChatMessage, Exercise, FoodLog, WorkoutSession, WorkoutPlan, ExerciseLog } = require("../models");
+const { Op } = require("sequelize");
 const apiError = require("../../utils/error.util");
 const apiResponse = require("../../utils/response.util");
 const HTTP_STATUS = require("../../constants/httpStatus.constant");
@@ -12,6 +13,10 @@ const mealScan = async (req, res, next) => {
   try {
     if (!req.file) {
       return next(new apiError(HTTP_STATUS.BAD_REQUEST, HTTP_CODE.BAD_REQUEST, "Meal image file is required"));
+    }
+
+    if (req.user.subscriptionTier === 'free') {
+      return res.status(403).json(new apiResponse(403, "UPGRADE_REQUIRED", "AI Meal Scanning is a Pro feature. Please upgrade to Pro to unlock Gemini Vision."));
     }
 
     // Resize image to max 1200px width before uploading to Cloudinary
@@ -77,6 +82,22 @@ const coachChat = async (req, res, next) => {
       return next(new apiError(HTTP_STATUS.BAD_REQUEST, HTTP_CODE.BAD_REQUEST, "Message text is required"));
     }
 
+    // Rate Limiting for Free Tier
+    if (req.user.subscriptionTier === 'free') {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const messageCount = await ChatMessage.count({
+        where: {
+          userId: req.user.id,
+          role: "user",
+          createdAt: { [Op.gte]: today }
+        }
+      });
+      if (messageCount >= 5) {
+        return res.status(403).json(new apiResponse(403, "UPGRADE_REQUIRED", "You have reached your daily limit of 5 free AI messages. Please upgrade to Pro."));
+      }
+    }
+
     // Save user message to database
     await ChatMessage.create({
       userId: req.user.id,
@@ -111,7 +132,59 @@ const coachChat = async (req, res, next) => {
 
     const fullPrompt = getCoachChatPrompt(userProfileContext, chatContext, message);
 
-    const reply = await generateCoachReply(fullPrompt);
+    let reply = await generateCoachReply(fullPrompt);
+
+    // Auto-Logging Interceptor
+    const jsonMatch = reply.match(/```json\n([\s\S]*?)\n```/);
+    if (jsonMatch) {
+      try {
+        const actionPayload = JSON.parse(jsonMatch[1]);
+        if (actionPayload.action === "LOG_MEAL") {
+          await FoodLog.create({
+            userId: req.user.id,
+            mealName: actionPayload.data.mealName || "AI Logged Meal",
+            mealType: "snack",
+            calories: actionPayload.data.calories || 0,
+            protein: actionPayload.data.protein || 0,
+            carbs: actionPayload.data.carbs || 0,
+            fats: actionPayload.data.fats || 0,
+            mealDate: new Date().toISOString().split("T")[0]
+          });
+        } else if (actionPayload.action === "LOG_WORKOUT") {
+          // Find exercise
+          const exName = actionPayload.data.exerciseName || "";
+          const ex = await Exercise.findOne({ where: { name: exName } });
+          if (ex) {
+            // Create a quick custom session
+            const plan = await WorkoutPlan.create({
+              userId: req.user.id,
+              name: "AI Quick Log",
+              goal: "general_fitness",
+              daysPerWeek: 1,
+              isAiGenerated: true,
+              schedule: []
+            });
+            const session = await WorkoutSession.create({
+              userId: req.user.id,
+              workoutPlanId: plan.id,
+              date: new Date().toISOString().split("T")[0],
+              status: "completed"
+            });
+            await ExerciseLog.create({
+              workoutSessionId: session.id,
+              exerciseId: ex.id,
+              setsCompleted: actionPayload.data.sets || 1,
+              repsCompleted: actionPayload.data.reps || 10,
+              weightKg: actionPayload.data.weightKg || 0
+            });
+          }
+        }
+        // Remove the JSON block so the user only sees the friendly text!
+        reply = reply.replace(/```json\n[\s\S]*?\n```/, "").trim();
+      } catch (err) {
+        console.error("AI Auto-Log Parsing Error:", err);
+      }
+    }
 
     // Save assistant reply to database
     const coachMessage = await ChatMessage.create({

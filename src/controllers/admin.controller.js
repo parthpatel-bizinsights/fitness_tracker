@@ -448,6 +448,36 @@ const deleteUser = async (req, res, next) => {
   }
 };
 
+const updateSubscription = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { tier } = req.body;
+
+    if (!["free", "pro"].includes(tier)) {
+      return next(
+        new apiError(HTTP_STATUS.BAD_REQUEST, HTTP_CODE.BAD_REQUEST, "Tier must be 'free' or 'pro'")
+      );
+    }
+
+    const user = await User.findByPk(id);
+    if (!user) {
+      return next(new apiError(HTTP_STATUS.NOT_FOUND, HTTP_CODE.DATA_NOT_FOUND, "User not found"));
+    }
+
+    user.subscriptionTier = tier;
+    await user.save();
+
+    const cleanUser = user.toJSON();
+    delete cleanUser.password;
+
+    res.status(HTTP_STATUS.OK).json(
+      new apiResponse(HTTP_STATUS.OK, HTTP_CODE.OK, `User subscription updated to ${tier}`, cleanUser)
+    );
+  } catch (error) {
+    next(error);
+  }
+};
+
 // ─────────────────────────────────────────────
 //  EXERCISE MANAGEMENT (CRUD)
 // ─────────────────────────────────────────────
@@ -682,4 +712,5 @@ module.exports = {
   updateExercise,
   deleteExercise,
   getAiUsage,
+  updateSubscription,
 };

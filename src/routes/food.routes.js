@@ -5,6 +5,8 @@ const {
   updateFoodLog,
   deleteFoodLog,
   barcodeLookup,
+  createRecipe,
+  getRecipes,
 } = require("../controllers/food.controller");
 const authMiddleware = require("../middlewares/auth.middleware");
 
@@ -15,6 +17,10 @@ router.use(authMiddleware);
 router.route("/")
   .get(getFoodLogsByDate)
   .post(logFood);
+
+router.route("/recipes")
+  .get(getRecipes)
+  .post(createRecipe);
 
 router.route("/:id")
   .put(updateFoodLog)

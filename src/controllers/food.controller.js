@@ -1,4 +1,4 @@
-const { FoodLog } = require("../models");
+const { FoodLog, Recipe } = require("../models");
 const apiError = require("../../utils/error.util");
 const apiResponse = require("../../utils/response.util");
 const HTTP_STATUS = require("../../constants/httpStatus.constant");
@@ -7,7 +7,7 @@ const { updateStreak } = require("../helpers/streakCalc");
 
 const logFood = async (req, res, next) => {
   try {
-    const { mealName, mealType, calories, protein, carbs, fats, imageUrl, barcode, mealDate } = req.body;
+    const { mealName, mealType, calories, protein, carbs, fats, fiber, sugar, sodium, imageUrl, barcode, mealDate, recipeId } = req.body;
     if (!mealName || !mealType || !mealDate) {
       return next(new apiError(HTTP_STATUS.BAD_REQUEST, HTTP_CODE.BAD_REQUEST, "mealName, mealType, and mealDate are required"));
     }
@@ -20,6 +20,9 @@ const logFood = async (req, res, next) => {
       protein: protein || 0,
       carbs: carbs || 0,
       fats: fats || 0,
+      fiber: fiber || 0,
+      sugar: sugar || 0,
+      sodium: sodium || 0,
       imageUrl,
       barcode,
       mealDate,
@@ -63,7 +66,7 @@ const updateFoodLog = async (req, res, next) => {
       return next(new apiError(HTTP_STATUS.NOT_FOUND, HTTP_CODE.DATA_NOT_FOUND, "Food log not found"));
     }
 
-    const fields = ["mealName", "mealType", "calories", "protein", "carbs", "fats", "imageUrl", "barcode", "mealDate"];
+    const fields = ["mealName", "mealType", "calories", "protein", "carbs", "fats", "fiber", "sugar", "sodium", "imageUrl", "barcode", "mealDate"];
     fields.forEach((field) => {
       if (req.body[field] !== undefined) {
         log[field] = req.body[field];
@@ -126,10 +129,55 @@ const barcodeLookup = async (req, res, next) => {
   }
 };
 
+const createRecipe = async (req, res, next) => {
+  try {
+    const { recipeName, calories, protein, carbs, fats, fiber, sugar, sodium, ingredients } = req.body;
+    if (!recipeName) {
+      return next(new apiError(HTTP_STATUS.BAD_REQUEST, HTTP_CODE.BAD_REQUEST, "recipeName is required"));
+    }
+
+    const recipe = await Recipe.create({
+      userId: req.user.id,
+      recipeName,
+      calories: calories || 0,
+      protein: protein || 0,
+      carbs: carbs || 0,
+      fats: fats || 0,
+      fiber: fiber || 0,
+      sugar: sugar || 0,
+      sodium: sodium || 0,
+      ingredients: ingredients || [],
+    });
+
+    res.status(HTTP_STATUS.CREATED).json(
+      new apiResponse(HTTP_STATUS.CREATED, HTTP_CODE.CREATED, "Recipe created successfully", recipe)
+    );
+  } catch (error) {
+    next(error);
+  }
+};
+
+const getRecipes = async (req, res, next) => {
+  try {
+    const recipes = await Recipe.findAll({
+      where: { userId: req.user.id },
+      order: [["createdAt", "DESC"]],
+    });
+
+    res.status(HTTP_STATUS.OK).json(
+      new apiResponse(HTTP_STATUS.OK, HTTP_CODE.OK, "Recipes retrieved", recipes)
+    );
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   logFood,
   getFoodLogsByDate,
   updateFoodLog,
   deleteFoodLog,
   barcodeLookup,
+  createRecipe,
+  getRecipes,
 };

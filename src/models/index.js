@@ -11,6 +11,7 @@ const WeightLog = require("./WeightLog");
 const BodyMeasurement = require("./BodyMeasurement");
 const ProgressPhoto = require("./ProgressPhoto");
 const ChatMessage = require("./ChatMessage");
+const Recipe = require("./Recipe");
 
 // User Relations
 User.hasMany(RefreshToken, { foreignKey: "userId", onDelete: "CASCADE" });
@@ -40,6 +41,9 @@ ProgressPhoto.belongsTo(User, { foreignKey: "userId" });
 User.hasMany(ChatMessage, { foreignKey: "userId", onDelete: "CASCADE" });
 ChatMessage.belongsTo(User, { foreignKey: "userId" });
 
+User.hasMany(Recipe, { foreignKey: "userId", onDelete: "CASCADE" });
+Recipe.belongsTo(User, { foreignKey: "userId" });
+
 // Workout relations
 WorkoutPlan.hasMany(WorkoutSession, { foreignKey: "workoutPlanId", onDelete: "SET NULL" });
 WorkoutSession.belongsTo(WorkoutPlan, { foreignKey: "workoutPlanId" });
@@ -64,4 +68,5 @@ module.exports = {
   BodyMeasurement,
   ProgressPhoto,
   ChatMessage,
+  Recipe,
 };

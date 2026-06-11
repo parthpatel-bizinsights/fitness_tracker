@@ -37,6 +37,8 @@ const startSession = async (req, res, next) => {
     const logs = [];
     for (const pe of planExercises) {
       const fullEx = await Exercise.findByPk(pe.exerciseId);
+      if (!fullEx) continue; // Skip invalid exercises to prevent foreign key errors
+
       const log = await ExerciseLog.create({
         workoutSessionId: session.id,
         exerciseId: pe.exerciseId,

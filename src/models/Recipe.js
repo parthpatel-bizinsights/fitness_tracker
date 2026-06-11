@@ -1,7 +1,7 @@
 const { DataTypes } = require("sequelize");
 const sequelize = require("../config/database");
 
-const FoodLog = sequelize.define("FoodLog", {
+const Recipe = sequelize.define("Recipe", {
   id: {
     type: DataTypes.UUID,
     defaultValue: DataTypes.UUIDV4,
@@ -11,12 +11,8 @@ const FoodLog = sequelize.define("FoodLog", {
     type: DataTypes.UUID,
     allowNull: false,
   },
-  mealName: {
+  recipeName: {
     type: DataTypes.STRING(200),
-    allowNull: false,
-  },
-  mealType: {
-    type: DataTypes.ENUM("breakfast", "lunch", "dinner", "snack"),
     allowNull: false,
   },
   calories: {
@@ -47,25 +43,13 @@ const FoodLog = sequelize.define("FoodLog", {
     type: DataTypes.DECIMAL(6, 2),
     allowNull: true,
   },
-  imageUrl: {
-    type: DataTypes.TEXT,
+  ingredients: {
+    type: DataTypes.JSON, // Could store array of ingredients
     allowNull: true,
-  },
-  barcode: {
-    type: DataTypes.STRING(50),
-    allowNull: true,
-  },
-  mealDate: {
-    type: DataTypes.DATEONLY,
-    allowNull: false,
-  },
-  isAiScanned: {
-    type: DataTypes.BOOLEAN,
-    defaultValue: false,
   },
 }, {
   timestamps: true,
-  tableName: "FoodLogs",
+  tableName: "Recipes",
 });
 
-module.exports = FoodLog;
+module.exports = Recipe;

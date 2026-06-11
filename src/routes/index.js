@@ -9,6 +9,7 @@ const weightRoutes = require("./weight.routes");
 const measurementRoutes = require("./measurement.routes");
 const aiRoutes = require("./ai.routes");
 const adminRoutes = require("./admin.routes");
+const historyRoutes = require("./history.routes");
 
 const router = express.Router();
 
@@ -22,6 +23,7 @@ router.use("/weight", weightRoutes);
 router.use("/measurements", measurementRoutes);
 router.use("/ai", aiRoutes);
 router.use("/admin", adminRoutes);
+router.use("/dashboard/history", historyRoutes);
 
 module.exports = router;
 

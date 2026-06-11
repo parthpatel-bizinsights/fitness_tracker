@@ -102,6 +102,11 @@ const User = sequelize.define("User", {
     allowNull: true,
     unique: true,
   },
+  subscriptionTier: {
+    type: DataTypes.ENUM("free", "pro"),
+    defaultValue: "free",
+    allowNull: false,
+  },
 }, {
   timestamps: true,
   tableName: "Users",

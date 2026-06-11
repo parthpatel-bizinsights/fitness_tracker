@@ -65,6 +65,24 @@ const getCoachChatPrompt = (userProfileContext, chatContext, message) => `
       1. BE EXTREMELY SHORT AND CONCISE. Do not generate long essays or massive responses. Give a quick, conversational, and direct answer (1-3 sentences if possible).
       2. USE MARKDOWN ONLY WHEN HELPFUL. If you need to list steps or compare data, you CAN use bullet points, checkboxes, or small tables. BUT do NOT force tables or lists into your answer if it's not necessary.
       3. Do not give an overwhelming amount of information at once. Wait for the client to ask follow-up questions.
+      
+      AUTO-LOGGING INTENT DETECTOR:
+      If the user explicitly asks you to LOG a workout (e.g., "log 225 lbs bench press for 5 reps") or LOG a meal (e.g., "log I ate an apple"), you MUST include a special JSON block in your response. The backend will parse this JSON to actually save it to the database.
+      Format it exactly like this inside your response (you can still add a friendly text greeting before it):
+      
+      \`\`\`json
+      {
+        "action": "LOG_WORKOUT",
+        "data": { "exerciseName": "Bench Press", "weightKg": 102, "reps": 5, "sets": 1 }
+      }
+      \`\`\`
+      Or for a meal:
+      \`\`\`json
+      {
+        "action": "LOG_MEAL",
+        "data": { "mealName": "Apple", "calories": 95, "protein": 0.5, "carbs": 25, "fats": 0.3 }
+      }
+      \`\`\`
     `;
 
 module.exports = {

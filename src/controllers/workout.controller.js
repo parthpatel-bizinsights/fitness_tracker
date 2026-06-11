@@ -115,6 +115,39 @@ const getWorkoutPlanById = async (req, res, next) => {
         ),
       );
     }
+
+    // Enrich single plan with exercise data
+    const exerciseIds = new Set();
+    if (plan.schedule) {
+      plan.schedule.forEach((day) => {
+        if (day.exercises) {
+          day.exercises.forEach((ex) => exerciseIds.add(ex.exerciseId));
+        }
+      });
+    }
+
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    const validUuids = Array.from(exerciseIds).filter(id => uuidRegex.test(id));
+
+    const exercises = await Exercise.findAll({
+      where: { id: validUuids },
+      attributes: ["id", "name", "category"]
+    });
+    const exMap = {};
+    exercises.forEach((e) => (exMap[e.id] = e));
+
+    const planData = plan.toJSON();
+    if (planData.schedule) {
+      planData.schedule = planData.schedule.map((day) => ({
+        ...day,
+        exercises: (day.exercises || []).map((ex) => ({
+          ...ex,
+          exercise: exMap[ex.exerciseId] || null,
+          exerciseName: exMap[ex.exerciseId] ? exMap[ex.exerciseId].name : null,
+        })),
+      }));
+    }
+
     res
       .status(HTTP_STATUS.OK)
       .json(
@@ -122,7 +155,7 @@ const getWorkoutPlanById = async (req, res, next) => {
           HTTP_STATUS.OK,
           HTTP_CODE.OK,
           "Workout plan retrieved",
-          plan,
+          planData,
         ),
       );
   } catch (error) {

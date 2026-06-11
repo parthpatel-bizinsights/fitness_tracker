@@ -14,6 +14,7 @@ const {
   updateExercise,
   deleteExercise,
   getAiUsage,
+  updateSubscription,
 } = require("../controllers/admin.controller");
 
 const router = express.Router();
@@ -31,6 +32,7 @@ router.get("/users", getAllUsers);
 router.get("/users/:id", getUserDetail);
 router.patch("/users/:id/role", updateUserRole);
 router.patch("/users/:id/ban", toggleUserBan);
+router.patch("/users/:id/subscription", updateSubscription);
 router.delete("/users/:id", deleteUser);
 
 // ── Exercise Management (CRUD) ─────────────────────────
