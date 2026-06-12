@@ -1,6 +1,7 @@
 require("dotenv").config();
 const app = require("./src/app");
 const { sequelize } = require("./src/models");
+const initCronJobs = require("./src/scripts/cronJobs");
 
 const PORT = process.env.PORT || 5000;
 
@@ -13,6 +14,10 @@ const startServer = async () => {
     // Database schemas are now managed exclusively via sequelize-cli migrations.
     // Run 'npx sequelize-cli db:migrate' to update the schema.
     console.log("✅ Database migration check complete.");
+
+    // Initialize background jobs
+    initCronJobs();
+    console.log("✅ Background cron jobs initialized.");
 
     app.listen(PORT, () => {
       console.log(`🚀 Server is running on port ${PORT} in ${process.env.NODE_ENV || "development"} mode.`);

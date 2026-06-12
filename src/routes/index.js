@@ -10,6 +10,7 @@ const measurementRoutes = require("./measurement.routes");
 const aiRoutes = require("./ai.routes");
 const adminRoutes = require("./admin.routes");
 const historyRoutes = require("./history.routes");
+const notificationRoutes = require("./notification.routes");
 
 const router = express.Router();
 
@@ -24,6 +25,7 @@ router.use("/measurements", measurementRoutes);
 router.use("/ai", aiRoutes);
 router.use("/admin", adminRoutes);
 router.use("/dashboard/history", historyRoutes);
+router.use("/notifications", notificationRoutes);
 
 module.exports = router;
 

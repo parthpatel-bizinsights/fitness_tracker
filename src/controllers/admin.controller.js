@@ -699,6 +699,70 @@ const getAiUsage = async (req, res, next) => {
   }
 };
 
+// ─────────────────────────────────────────────
+//  BROADCAST PUSH NOTIFICATION
+// ─────────────────────────────────────────────
+const webpush = require("web-push");
+
+const broadcastPushNotification = async (req, res, next) => {
+  try {
+    const { title, body } = req.body;
+    
+    if (!title || !body) {
+      return next(new apiError(HTTP_STATUS.BAD_REQUEST, HTTP_CODE.BAD_REQUEST, "Title and body are required"));
+    }
+
+    // Find all users with a valid push subscription
+    const users = await User.findAll({
+      where: {
+        pushSubscription: {
+          [Op.not]: null,
+        },
+      },
+    });
+
+    if (!users || users.length === 0) {
+      return res.status(HTTP_STATUS.OK).json(new apiResponse(HTTP_STATUS.OK, HTTP_CODE.OK, "No users found with active push subscriptions."));
+    }
+
+    const payload = JSON.stringify({
+      title,
+      body,
+      url: "/dashboard",
+    });
+
+    let successCount = 0;
+    let failCount = 0;
+
+    // Send notifications in parallel
+    const sendPromises = users.map(async (user) => {
+      try {
+        await webpush.sendNotification(user.pushSubscription, payload);
+        successCount++;
+      } catch (error) {
+        failCount++;
+        // If subscription is expired/invalid, remove it
+        if (error.statusCode === 410 || error.statusCode === 404) {
+          user.pushSubscription = null;
+          await user.save();
+        }
+      }
+    });
+
+    await Promise.all(sendPromises);
+
+    res.status(HTTP_STATUS.OK).json(
+      new apiResponse(HTTP_STATUS.OK, HTTP_CODE.OK, "Broadcast complete", {
+        totalAttempted: users.length,
+        successCount,
+        failCount,
+      })
+    );
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   getDashboardStats,
   getPlatformAnalytics,
@@ -713,4 +777,5 @@ module.exports = {
   deleteExercise,
   getAiUsage,
   updateSubscription,
+  broadcastPushNotification,
 };

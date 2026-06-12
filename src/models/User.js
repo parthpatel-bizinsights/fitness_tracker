@@ -107,6 +107,10 @@ const User = sequelize.define("User", {
     defaultValue: "free",
     allowNull: false,
   },
+  pushSubscription: {
+    type: DataTypes.JSON,
+    allowNull: true,
+  },
 }, {
   timestamps: true,
   tableName: "Users",

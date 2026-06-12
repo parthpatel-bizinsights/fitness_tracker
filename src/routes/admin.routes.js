@@ -15,6 +15,7 @@ const {
   deleteExercise,
   getAiUsage,
   updateSubscription,
+  broadcastPushNotification,
 } = require("../controllers/admin.controller");
 
 const router = express.Router();
@@ -26,6 +27,9 @@ router.use(authMiddleware, adminMiddleware);
 router.get("/stats", getDashboardStats);
 router.get("/analytics", getPlatformAnalytics);
 router.get("/ai-usage", getAiUsage);
+
+// ── Notifications ──────────────────────────────────────
+router.post("/notifications/broadcast", broadcastPushNotification);
 
 // ── User Management ────────────────────────────────────
 router.get("/users", getAllUsers);
